@@ -1,0 +1,66 @@
+.fertilizer-page {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(135deg, #e8f5e9, #e3f2fd);
+  font-family: "Inter", sans-serif;
+}
+
+.fertilizer-card {
+  width: 420px;
+  padding: 2.5rem;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+  text-align: center;
+}
+
+.fertilizer-card h1 {
+  color: #2e7d32;
+  margin-bottom: 0.5rem;
+}
+
+.subtitle {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 1.5rem;
+}
+
+.fertilizer-card input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+  font-size: 0.95rem;
+}
+
+.fertilizer-card input:focus {
+  outline: none;
+  border-color: #4caf50;
+}
+
+.fertilizer-card button {
+  width: 100%;
+  padding: 0.8rem;
+  border-radius: 12px;
+  border: none;
+  background: #4caf50;
+  color: white;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fertilizer-card button:hover {
+  background: #43a047;
+}
+
+.result-box {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: #f1f8e9;
+  border-radius: 12px;
+  color: #2e7d32;
+}
