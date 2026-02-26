@@ -1,0 +1,22 @@
+.market-container {
+  padding: 20px;
+}
+
+.input-group {
+  margin-bottom: 10px;
+}
+
+.crop-list label {
+  margin-right: 15px;
+}
+
+button {
+  margin: 15px 0;
+  padding: 6px 12px;
+}
+
+.result-card {
+  border: 1px solid #ccc;
+  padding: 15px;
+  margin: 15px 0;
+}

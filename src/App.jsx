@@ -1,7 +1,7 @@
-import Login from "./components/Login";
+import MarketAnalysis from "./components/MarketAnalysis";
 
 function App() {
-  return <Login />;
+  return <MarketAnalysis />;
 }
 
 export default App;
