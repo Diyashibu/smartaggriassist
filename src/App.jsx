@@ -1,7 +1,8 @@
-import MarketAnalysis from "./components/MarketAnalysis";
+import Fertilizer from "./components/Fertilizer";
+import Login from "./components/Fertilizer";
 
 function App() {
-  return <MarketAnalysis />;
+  return <Fertilizer />;
 }
 
 export default App;
