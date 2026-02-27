@@ -443,7 +443,23 @@
   transform: translateX(5px);
   color: #4b5563;
 }
+.card-teal {
+  border-left: 5px solid #009688;
+}
+.card-teal:hover {
+  border-color: #009688;
+  box-shadow: 0 20px 40px rgba(0, 150, 136, 0.25);
+}
+.card-teal .card-icon {
+  background: linear-gradient(135deg, #009688 0%, #4db6ac 100%);
+}
 
+/* Make the grid 2x2 on wider screens */
+@media (min-width: 768px) {
+  .action-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
 @media (max-width: 1024px) {
   .action-cards {
     grid-template-columns: 1fr;

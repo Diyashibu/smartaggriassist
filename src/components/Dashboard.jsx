@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { Sprout, Leaf, MessageCircle, User, LogOut, ChevronDown } from 'lucide-react';
-import { supabase } from '../supabaseClient'; 
+import { Sprout, Leaf, MessageCircle, LogOut, ChevronDown, FlaskConical, TrendingUp } from 'lucide-react';
+import { supabase } from '../supabaseClient';
 import './Dashboard.css';
 import LeafDiseasePrediction from './LeafDiseasePrediction';
 import CropRecommendation from './CropRecommendation';
+import Fertilizer from './Fertilizer'
+import MarketAnalysis from './MarketAnalysis';
 
 function Dashboard() {
   const [currentPage, setCurrentPage] = useState('dashboard');
@@ -20,22 +22,16 @@ function Dashboard() {
           .select('name, age, address')
           .eq('id', user.id)
           .single();
-
-        if (!error && data) {
-          setProfile(data);
-        }
+        if (!error && data) setProfile(data);
       }
     };
-
     fetchProfile();
   }, []);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target))
         setDropdownOpen(false);
-      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -43,7 +39,7 @@ function Dashboard() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    window.location.href = '/'; // redirect to login/home
+    window.location.href = '/';
   };
 
   const getInitials = (name) => {
@@ -51,13 +47,44 @@ function Dashboard() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  if (currentPage === 'disease-prediction') {
+  if (currentPage === 'disease-prediction')
     return <LeafDiseasePrediction onBack={() => setCurrentPage('dashboard')} />;
-  }
-
-  if (currentPage === 'crop-recommendation') {
+  if (currentPage === 'fertilizer-recommendation')
+    return <Fertilizer onBack={() => setCurrentPage('dashboard')} />;
+  if (currentPage === 'crop-recommendation')
     return <CropRecommendation onBack={() => setCurrentPage('dashboard')} />;
-  }
+  if (currentPage === 'market-analysis')
+    return <MarketAnalysis onBack={() => setCurrentPage('dashboard')} />;
+  const cards = [
+    {
+      key: 'crop-recommendation',
+      colorClass: 'card-green',
+      icon: <Sprout size={40} />,
+      title: 'Crop Recommendation',
+      description: 'Get AI-powered crop suggestions tailored to your soil type, climate, and season.',
+    },
+    {
+      key: 'fertilizer-recommendation',
+      colorClass: 'card-teal',
+      icon: <FlaskConical size={40} />,
+      title: 'Fertilizer Recommendation',
+      description: 'Receive optimal fertilizer plans based on nutrient deficiencies and crop needs.',
+    },
+    {
+      key: 'disease-prediction',
+      colorClass: 'card-orange',
+      icon: <Leaf size={40} />,
+      title: 'Leaf Disease Detection',
+      description: 'Upload leaf images to instantly identify diseases and get treatment advice.',
+    },
+    {
+      key: 'market-analysis',
+      colorClass: 'card-blue',
+      icon: <TrendingUp size={40} />,
+      title: 'Market Analysis',
+      description: 'Track real-time crop prices and market trends to maximize your profit.',
+    },
+  ];
 
   return (
     <div className="dashboard-container">
@@ -70,49 +97,34 @@ function Dashboard() {
       <div className="dashboard-content">
         <header className="dashboard-header">
           <div className="logo-section">
-            <div className="logo-icon">
-              <Sprout size={32} />
-            </div>
+            <div className="logo-icon"><Sprout size={32} /></div>
             <h1 className="brand-name">SmartAgriAssist</h1>
           </div>
 
-          {/* ── Profile section ── */}
           <div className="profile-wrapper" ref={dropdownRef}>
             <button
               className="profile-trigger"
               onClick={() => setDropdownOpen(prev => !prev)}
               aria-expanded={dropdownOpen}
             >
-              <div className="avatar">
-                {getInitials(profile?.name)}
-              </div>
+              <div className="avatar">{getInitials(profile?.name)}</div>
               <span className="profile-name">{profile?.name ?? 'Loading...'}</span>
-              <ChevronDown
-                size={16}
-                className={`chevron ${dropdownOpen ? 'chevron-open' : ''}`}
-              />
+              <ChevronDown size={16} className={`chevron ${dropdownOpen ? 'chevron-open' : ''}`} />
             </button>
 
             {dropdownOpen && (
               <div className="profile-dropdown">
                 <div className="dropdown-header">
-                  <div className="avatar avatar-large">
-                    {getInitials(profile?.name)}
-                  </div>
+                  <div className="avatar avatar-large">{getInitials(profile?.name)}</div>
                   <div>
                     <p className="dropdown-name">{profile?.name}</p>
-                    {profile?.age && (
-                      <p className="dropdown-meta">Age: {profile.age}</p>
-                    )}
-                    {profile?.address && (
-                      <p className="dropdown-meta">{profile.address}</p>
-                    )}
+                    {profile?.age && <p className="dropdown-meta">Age: {profile.age}</p>}
+                    {profile?.address && <p className="dropdown-meta">{profile.address}</p>}
                   </div>
                 </div>
                 <hr className="dropdown-divider" />
                 <button className="dropdown-item" onClick={handleLogout}>
-                  <LogOut size={15} />
-                  Sign out
+                  <LogOut size={15} /> Sign out
                 </button>
               </div>
             )}
@@ -129,44 +141,23 @@ function Dashboard() {
         </section>
 
         <div className="action-cards">
-          <div className="action-card card-green" onClick={() => setCurrentPage('crop-recommendation')}>
-            <div className="card-icon-wrapper">
-              <div className="card-icon"><Sprout size={40} /></div>
+          {cards.map((card, i) => (
+            <div
+              key={card.key}
+              className={`action-card ${card.colorClass}`}
+              style={{ animationDelay: `${i * 0.1 + 0.1}s` }}
+              onClick={() => setCurrentPage(card.key)}
+            >
+              <div className="card-icon-wrapper">
+                <div className="card-icon">{card.icon}</div>
+              </div>
+              <div className="card-content">
+                <h3 className="card-title">{card.title}</h3>
+                <p className="card-description">{card.description}</p>
+              </div>
+              <div className="card-arrow">→</div>
             </div>
-            <div className="card-content">
-              <h3 className="card-title">Crop & Fertilizer</h3>
-              <p className="card-description">
-                Get personalized crop and fertilizer recommendations based on soil conditions
-              </p>
-            </div>
-            <div className="card-arrow">→</div>
-          </div>
-
-          <div className="action-card card-orange" onClick={() => setCurrentPage('disease-prediction')}>
-            <div className="card-icon-wrapper">
-              <div className="card-icon"><Leaf size={40} /></div>
-            </div>
-            <div className="card-content">
-              <h3 className="card-title">Leaf Disease Detection</h3>
-              <p className="card-description">
-                Upload leaf images to identify diseases and get treatment suggestions
-              </p>
-            </div>
-            <div className="card-arrow">→</div>
-          </div>
-
-          <div className="action-card card-blue" onClick={() => setCurrentPage('ai-chatbot')}>
-            <div className="card-icon-wrapper">
-              <div className="card-icon"><MessageCircle size={40} /></div>
-            </div>
-            <div className="card-content">
-              <h3 className="card-title">AI Assistant</h3>
-              <p className="card-description">
-                Chat with our AI assistant for instant farming advice and solutions
-              </p>
-            </div>
-            <div className="card-arrow">→</div>
-          </div>
+          ))}
         </div>
       </div>
     </div>
