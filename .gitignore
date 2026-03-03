@@ -27,3 +27,5 @@ dist-ssr
 # Python virtual environment
 backend/venv/
 __pycache__/
+
+*.zip
