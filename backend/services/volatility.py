@@ -6,4 +6,10 @@ def calculate_volatility(prices):
     returns normalized volatility score (0 to 1)
     """
     prices = np.array(prices)
-    return np.std(prices) / np.mean(prices)
+    
+    mean_price = np.mean(prices)
+
+    if mean_price == 0:
+        return 0
+
+    return min(np.std(prices) / mean_price, 1)

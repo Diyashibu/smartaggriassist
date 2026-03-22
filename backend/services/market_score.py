@@ -6,14 +6,17 @@ def calculate_market_score(
 ):
     avg_profit = sum(profit_range) / 2
 
-    # Normalize profit roughly
-    profit_score = min(avg_profit / 100000, 1)
+    # Normalize profit to 0–1 range (# Normalize profit between -1 and 1)
+    profit_score = max(min(avg_profit / 50000, 1), -1)
+
+    # Shift to 0–1 range
+    profit_score = (profit_score + 1) / 2
 
     score = (
         0.4 * profit_score +
-        0.3 * demand_index -
-        0.2 * supply_index -
-        0.1 * volatility_index
+        0.3 * demand_index +
+        0.2 * (1 - supply_index) +
+        0.1 * (1 - volatility_index)
     )
 
-    return round(max(0, min(score * 100, 100)), 2)
+    return round(score * 100, 2)

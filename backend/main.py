@@ -39,49 +39,69 @@ def get_available_crops():
 @app.post("/market-analysis")
 def market_analysis(request: dict):
     crops = request.get("crops", [])
-    market = request.get("market", "Kolar")
     land_size = request.get("land_size", 1)
 
     # Load static datasets
     price_df = pd.read_csv("data/prices.csv")
-    yield_df = pd.read_csv("data/yield.csv")
-    cost_df = pd.read_csv("data/cost.csv")
-    acreage_df = pd.read_csv("data/acreage.csv")
+    apy_df = pd.read_csv("data/apy_cleaned.csv")
+    cost_df = pd.read_csv("data/cost_cleaned.csv")
 
 
     results = []
 
     for crop in crops:
-        # -----------------------------
-        # 1. Train ML model
-        # -----------------------------
+
+        crop = crop.strip().title()
+
+        # ------------------------------------------------
+        # Historical prices (cleaned + averaged per date)
+        # ------------------------------------------------
+
+        hist_df = price_df[price_df["crop"] == crop]
+
+        # remove extreme mandi outliers
+        hist_df = hist_df[(hist_df["price"] > 50) & (hist_df["price"] < 20000)]
+
+        # average price per date across markets
+        hist_df = hist_df.groupby("date")["price"].mean().reset_index()
+
+        # historical price list (used later for volatility/demand)
+        hist_prices = hist_df["price"].tolist()
+
+        # ------------------------------------------------
+        # Train ML model
+        # ------------------------------------------------
         model = train_price_model(
             csv_path="data/prices.csv",
-            crop=crop,
-            market=market
+            crop=crop
         )
 
         forecast = predict_future_prices(model, months_ahead=3)
 
-        # Extract price info
-        raw_prices = forecast["yhat"].tail(4).tolist()
+        # ------------------------------------------------
+        # Price trend (Past + Future)
+        # ------------------------------------------------
 
-        clamped_prices = [clamp_price(p) for p in raw_prices]
-        price_trend = clamped_prices
+        # last 3 historical average prices
+        hist = hist_prices[-3:] if len(hist_prices) >= 3 else hist_prices
 
+        # predicted price
+        future = forecast["yhat"].iloc[-1]
+
+        raw_prices = hist + [future]
+
+        price_trend = [clamp_price(p) for p in raw_prices]
+
+        # prediction range
         price_low = clamp_price(forecast["yhat_lower"].iloc[-1])
         price_high = clamp_price(forecast["yhat_upper"].iloc[-1])
-
-
-        # -----------------------------
-        # 2. Volatility (historical)
-        # -----------------------------
-        hist_prices = price_df[
-            (price_df["crop"] == crop) &
-            (price_df["market"] == market)
-        ]["price"].tolist()
-
-        volatility_index = calculate_volatility(hist_prices)
+        # ------------------------------------------------
+        # Volatility
+        # ------------------------------------------------
+        if len(hist_prices) < 2:
+            volatility_index = 0.2
+        else:
+            volatility_index = calculate_volatility(hist_prices)
 
         if volatility_index > 0.3:
             volatility_label = "High"
@@ -90,9 +110,9 @@ def market_analysis(request: dict):
         else:
             volatility_label = "Low"
 
-        # -----------------------------
-        # 2.1 Confidence level
-        # -----------------------------
+        # ------------------------------------------------
+        # Confidence
+        # ------------------------------------------------
         if volatility_label == "High":
             confidence = "Low"
         elif volatility_label == "Medium":
@@ -100,11 +120,24 @@ def market_analysis(request: dict):
         else:
             confidence = "High"
 
-        # -----------------------------
-        # 3. Profit range
-        # -----------------------------
-        yield_per_acre = int(yield_df[yield_df["crop"] == crop]["yield_per_acre"].values[0])
-        cost_per_acre = int(cost_df[cost_df["crop"] == crop]["cost_per_acre"].values[0])
+        # ------------------------------------------------
+        # Profit calculation
+        # ------------------------------------------------
+
+        yield_data = apy_df[apy_df["Crop"] == crop]
+
+        if len(yield_data) == 0:
+            yield_per_acre = 20
+        else:
+            yield_per_hectare = yield_data["Yield"].mean()
+            yield_per_acre = yield_per_hectare / 2.471
+
+        cost_data = cost_df[cost_df["crop"] == crop]
+
+        if len(cost_data) == 0:
+            cost_per_acre = 20000
+        else:
+            cost_per_acre = cost_data["cost_per_acre"].mean()
 
         profit_range = calculate_profit_range(
             price_low,
@@ -114,27 +147,24 @@ def market_analysis(request: dict):
             land_size
         )
 
-        profit_range = (
-        float(profit_range[0]),
-        float(profit_range[1])
-        )
+        profit_range = (float(profit_range[0]), float(profit_range[1]))
 
-        # -----------------------------
-        # 4. Supply & demand
-        # -----------------------------
-        
+        # ------------------------------------------------
+        # Supply estimation
+        # ------------------------------------------------
         supply_label, supply_index = estimate_supply_from_acreage(
-            acreage_df=acreage_df,
-            crop=crop,
-            market=market
+            apy_df=apy_df,
+            crop=crop
         )
 
-        
+        # ------------------------------------------------
+        # Demand estimation
+        # ------------------------------------------------
         demand_label, demand_index = estimate_demand_from_prices(hist_prices)
 
-        # -----------------------------
-        # 5. Market score
-        # -----------------------------
+        # ------------------------------------------------
+        # Market score
+        # ------------------------------------------------
         market_score = calculate_market_score(
             profit_range,
             demand_index,
@@ -144,6 +174,9 @@ def market_analysis(request: dict):
 
         market_score = float(market_score)
 
+        # ------------------------------------------------
+        # Explanation
+        # ------------------------------------------------
         explanation = generate_explanation(
             crop=crop,
             demand=demand_label,
@@ -152,7 +185,6 @@ def market_analysis(request: dict):
             profit_range=profit_range,
             market_score=market_score
         )
-
 
         results.append({
             "crop": crop,
@@ -166,4 +198,9 @@ def market_analysis(request: dict):
             "explanation": explanation
         })
 
+        # Debug print
+        #print(crop, price_trend)
+
     return {"comparison": results}
+
+    

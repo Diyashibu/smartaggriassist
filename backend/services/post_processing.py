@@ -1,9 +1,7 @@
-def clamp_price(price, min_price=1, max_price=200):
-    """
-    Prevent absurd ML outputs
-    """
-    return max(min(price, max_price), min_price)
-
+def clamp_price(price):
+    if price < 0:
+        return 0
+    return float(price)
 
 def smooth_price_trend(price_list):
     """
