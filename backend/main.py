@@ -1,8 +1,18 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import pandas as pd
 
-from fastapi.middleware.cors import CORSMiddleware
-from services.post_processing import clamp_price, smooth_price_trend
+# =========================
+# SERVICE IMPORTS
+# =========================
+
+# From File 1 (extra modules)
+from services.crop_service import recommendation_relative
+from services.fertilizer_service import predict_fertilizer
+
+# Common services (used in File 2 logic)
+from services.post_processing import clamp_price
 from services.price_predictor import train_price_model, predict_future_prices
 from services.volatility import calculate_volatility
 from services.profit import calculate_profit_range
@@ -11,41 +21,115 @@ from services.explainability import generate_explanation
 from services.supply_estimator import estimate_supply_from_acreage
 from services.demand_estimator import estimate_demand_from_prices
 
+# =========================
+# APP INITIALIZATION
+# =========================
 
-app = FastAPI(title="SmartAgriAssist Market Backend")
+app = FastAPI(title="SmartAgriAssist Backend")
+
+# =========================
+# CORS
+# =========================
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# =========================
+# REQUEST MODELS 
+# =========================
 
+class FertilizerRequest(BaseModel):
+    temperature: float
+    humidity: float
+    moisture: float
+    soil: str
+    crop: str
+    nitrogen: float
+    phosphorous: float
+    potassium: float
+
+
+class CropRequest(BaseModel):
+    N: float
+    P: float
+    K: float
+    temperature: float
+    humidity: float
+    ph: float
+    rainfall: float
+
+
+# =========================
+# HEALTH CHECK
+# =========================
 
 @app.get("/")
 def health_check():
     return {"status": "Backend running"}
 
+
+# =========================
+# 🌱 CROP RECOMMENDATION 
+# =========================
+
+@app.post("/predict")
+def crop_recommendation(data: CropRequest):
+    crop = recommendation_relative(
+        data.N,
+        data.P,
+        data.K,
+        data.temperature,
+        data.humidity,
+        data.ph,
+        data.rainfall
+    )
+    return {"crop": crop}
+
+
+# =========================
+# 🌾 FERTILIZER RECOMMENDATION
+# =========================
+
+@app.post("/predict-fertilizer")
+def fertilizer_endpoint(request: FertilizerRequest):
+    fertilizer = predict_fertilizer(request.dict())
+    return {"fertilizer": fertilizer}
+
+
+# =========================
+# 📊 AVAILABLE CROPS 
+# =========================
+
 @app.get("/available-crops")
 def get_available_crops():
     price_df = pd.read_csv("data/prices.csv")
-
     crops = sorted(price_df["crop"].unique().tolist())
-
     return {"crops": crops}
 
+
+# =========================
+# 📈 MARKET ANALYSIS
+# =========================
 
 @app.post("/market-analysis")
 def market_analysis(request: dict):
     crops = request.get("crops", [])
     land_size = request.get("land_size", 1)
 
-    # Load static datasets
+    # Load datasets
     price_df = pd.read_csv("data/prices.csv")
     apy_df = pd.read_csv("data/apy_cleaned.csv")
     cost_df = pd.read_csv("data/cost_cleaned.csv")
-
 
     results = []
 
@@ -53,24 +137,20 @@ def market_analysis(request: dict):
 
         crop = crop.strip().title()
 
-        # ------------------------------------------------
-        # Historical prices (cleaned + averaged per date)
-        # ------------------------------------------------
-
+        # -------------------------------
+        # Historical Data Cleaning
+        # -------------------------------
         hist_df = price_df[price_df["crop"] == crop]
 
-        # remove extreme mandi outliers
         hist_df = hist_df[(hist_df["price"] > 50) & (hist_df["price"] < 20000)]
 
-        # average price per date across markets
         hist_df = hist_df.groupby("date")["price"].mean().reset_index()
 
-        # historical price list (used later for volatility/demand)
         hist_prices = hist_df["price"].tolist()
 
-        # ------------------------------------------------
-        # Train ML model
-        # ------------------------------------------------
+        # -------------------------------
+        # Model Training
+        # -------------------------------
         model = train_price_model(
             csv_path="data/prices.csv",
             crop=crop
@@ -78,26 +158,21 @@ def market_analysis(request: dict):
 
         forecast = predict_future_prices(model, months_ahead=3)
 
-        # ------------------------------------------------
-        # Price trend (Past + Future)
-        # ------------------------------------------------
-
-        # last 3 historical average prices
+        # -------------------------------
+        # Price Trend (Past + Future)
+        # -------------------------------
         hist = hist_prices[-3:] if len(hist_prices) >= 3 else hist_prices
-
-        # predicted price
         future = forecast["yhat"].iloc[-1]
 
         raw_prices = hist + [future]
-
         price_trend = [clamp_price(p) for p in raw_prices]
 
-        # prediction range
         price_low = clamp_price(forecast["yhat_lower"].iloc[-1])
         price_high = clamp_price(forecast["yhat_upper"].iloc[-1])
-        # ------------------------------------------------
+
+        # -------------------------------
         # Volatility
-        # ------------------------------------------------
+        # -------------------------------
         if len(hist_prices) < 2:
             volatility_index = 0.2
         else:
@@ -110,9 +185,9 @@ def market_analysis(request: dict):
         else:
             volatility_label = "Low"
 
-        # ------------------------------------------------
+        # -------------------------------
         # Confidence
-        # ------------------------------------------------
+        # -------------------------------
         if volatility_label == "High":
             confidence = "Low"
         elif volatility_label == "Medium":
@@ -120,10 +195,9 @@ def market_analysis(request: dict):
         else:
             confidence = "High"
 
-        # ------------------------------------------------
-        # Profit calculation
-        # ------------------------------------------------
-
+        # -------------------------------
+        # Profit Calculation
+        # -------------------------------
         yield_data = apy_df[apy_df["Crop"] == crop]
 
         if len(yield_data) == 0:
@@ -149,22 +223,19 @@ def market_analysis(request: dict):
 
         profit_range = (float(profit_range[0]), float(profit_range[1]))
 
-        # ------------------------------------------------
-        # Supply estimation
-        # ------------------------------------------------
+        # -------------------------------
+        # Supply & Demand
+        # -------------------------------
         supply_label, supply_index = estimate_supply_from_acreage(
             apy_df=apy_df,
             crop=crop
         )
 
-        # ------------------------------------------------
-        # Demand estimation
-        # ------------------------------------------------
         demand_label, demand_index = estimate_demand_from_prices(hist_prices)
 
-        # ------------------------------------------------
-        # Market score
-        # ------------------------------------------------
+        # -------------------------------
+        # Market Score
+        # -------------------------------
         market_score = calculate_market_score(
             profit_range,
             demand_index,
@@ -174,9 +245,9 @@ def market_analysis(request: dict):
 
         market_score = float(market_score)
 
-        # ------------------------------------------------
+        # -------------------------------
         # Explanation
-        # ------------------------------------------------
+        # -------------------------------
         explanation = generate_explanation(
             crop=crop,
             demand=demand_label,
@@ -198,9 +269,4 @@ def market_analysis(request: dict):
             "explanation": explanation
         })
 
-        # Debug print
-        #print(crop, price_trend)
-
     return {"comparison": results}
-
-    
