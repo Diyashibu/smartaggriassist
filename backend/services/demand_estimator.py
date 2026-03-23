@@ -16,7 +16,7 @@ def estimate_demand_from_prices(hist_prices):
 
     # ---- RULES ----
     # Strong + stable prices → High demand
-    if avg_price >= 30 and cv < 0.25:
+    if avg_price >= 1500 and cv < 0.25:
         return "High", 0.7
 
     # Highly unstable prices → Low demand

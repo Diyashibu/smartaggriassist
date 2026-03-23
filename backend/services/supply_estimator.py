@@ -1,29 +1,16 @@
 import pandas as pd
 
-def estimate_supply_from_acreage(
-    acreage_df: pd.DataFrame,
-    crop: str,
-    market: str
-):
-    """
-    Estimate supply level based on acreage trend.
-    """
+def estimate_supply_from_acreage(apy_df: pd.DataFrame, crop: str):
 
-    df = acreage_df[
-        (acreage_df["crop"] == crop) &
-        (acreage_df["market"] == market)
-    ].sort_values("year")
+    df = apy_df[apy_df["Crop"] == crop].sort_values("Crop_Year")
 
-    # Fallback if no data
     if len(df) < 2:
         return "Medium", 0.5
 
-    # Calculate year-on-year percentage change
-    df["growth"] = df["area_acres"].pct_change()
+    df["growth"] = df["Area"].pct_change()
 
     avg_growth = df["growth"].mean()
 
-    # Decide supply level
     if avg_growth > 0.10:
         return "High", 0.7
     elif avg_growth < -0.05:

@@ -18,7 +18,6 @@ const Login = () => {
   const [address, setAddress] = useState("");
   const [age, setAge] = useState("");
 
-  // ✅ HANDLE SESSION + REDIRECT PROPERLY
   useEffect(() => {
     const checkSession = async () => {
       const {
