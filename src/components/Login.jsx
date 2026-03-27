@@ -18,43 +18,62 @@ const Login = () => {
   const [address, setAddress] = useState("");
   const [age, setAge] = useState("");
 
+  const withTimeout = (
+    promise,
+    timeoutMs = 15000,
+    fallbackMessage = "Request timed out. Please try again."
+  ) => {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(fallbackMessage)), timeoutMs)
+      ),
+    ]);
+  };
+
+  const getProfileByUserId = async (userId) => {
+    const { data: profile, error } = await withTimeout(
+      supabase.from("profiles").select("id").eq("id", userId).maybeSingle(),
+      10000,
+      "Profile check timed out."
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    return profile;
+  };
+
+  const isEmailConfirmed = (user) => {
+    const confirmedAt =
+      user?.email_confirmed_at ??
+      user?.confirmed_at ??
+      user?.app_metadata?.email_confirmed_at;
+
+    if (typeof confirmedAt === "undefined") return true; 
+
+    return Boolean(confirmedAt);
+  };
+
   useEffect(() => {
-    const checkSession = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    const checkAndMaybeOpenProfile = async (user) => {
+      if (!user) return;
 
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("id", user.id)
-          .single();
+      if (!isEmailConfirmed(user)) return;
 
-        if (!profile) {
-          setShowProfileModal(true);
-        } else {
-          navigate("/dashboard");
-        }
-      }
+      const profile = await getProfileByUserId(user.id);
+      if (!profile) setShowProfileModal(true);
     };
 
-    checkSession();
-
     const { data: listener } = supabase.auth.onAuthStateChange(
-      async (_, session) => {
-        if (session?.user) {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("id")
-            .eq("id", session.user.id)
-            .single();
+      async (event, session) => {
+        try {
+          if (!session?.user) return;
 
-          if (!profile) {
-            setShowProfileModal(true);
-          } else {
-            navigate("/dashboard");
-          }
+          if (event !== "SIGNED_IN" && event !== "USER_UPDATED") return;
+          await checkAndMaybeOpenProfile(session.user);
+        } catch {
         }
       }
     );
@@ -62,7 +81,7 @@ const Login = () => {
     return () => {
       listener.subscription.unsubscribe();
     };
-  }, [navigate]);
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -70,72 +89,89 @@ const Login = () => {
     setError("");
     setMessage("");
 
-    if (isSignup) {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: window.location.origin,
-        },
-      });
+    try {
+      if (isSignup) {
+        const { error } = await withTimeout(
+          supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              emailRedirectTo: window.location.origin,
+            },
+          }),
+          15000,
+          "Sign up timed out. Check internet/Supabase config."
+        );
 
-      if (error) {
-        setError(error.message);
+        if (error) {
+          setError(error.message);
+        } else {
+          setMessage("Check your email to verify your account.");
+        }
       } else {
-        setMessage("Check your email to verify your account.");
-      }
-    } else {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+        const { data, error } = await withTimeout(
+          supabase.auth.signInWithPassword({
+            email,
+            password,
+          }),
+          15000,
+          "Login timed out. Check internet/Supabase config."
+        );
 
-      if (error) {
-        setError(error.message);
-      } else {
-        const user = data.user;
+        if (error) throw error;
+        if (!data?.user) throw new Error("Login failed. No user returned.");
 
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("id", user.id)
-          .single();
-
+        const profile = await getProfileByUserId(data.user.id);
         if (!profile) {
           setShowProfileModal(true);
         } else {
           navigate("/dashboard");
         }
       }
+    } catch (err) {
+      setError(err.message || "Login failed. Please try again.");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   const handleProfileSave = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await withTimeout(
+        supabase.auth.getUser(),
+        10000,
+        "Session lookup timed out."
+      );
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!user) throw new Error("User not found. Please login again.");
 
-    const { error } = await supabase.from("profiles").insert({
-      id: user.id,
-      name,
-      address,
-      age: parseInt(age),
-    });
+      const { error } = await withTimeout(
+        supabase.from("profiles").insert({
+          id: user.id,
+          name,
+          address,
+          age: parseInt(age, 10),
+        }),
+        10000,
+        "Saving profile timed out."
+      );
 
-    if (error) {
-      setError(error.message);
-    } else {
+      if (error) throw error;
+
       setShowProfileModal(false);
       navigate("/dashboard");
+    } catch (err) {
+      setError(err.message || "Unable to save profile.");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
