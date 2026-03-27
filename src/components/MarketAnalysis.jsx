@@ -11,6 +11,19 @@ function MarketAnalysis() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    const prevBodyBg = document.body.style.background;
+    const prevHtmlBg = document.documentElement.style.background;
+
+    document.body.style.background = "#0d1a12";
+    document.documentElement.style.background = "#0d1a12";
+
+    return () => {
+      document.body.style.background = prevBodyBg;
+      document.documentElement.style.background = prevHtmlBg;
+    };
+  }, []);
+
+  useEffect(() => {
     fetch("http://127.0.0.1:8000/available-crops")
       .then(res => res.json())
       .then(data => setAvailableCrops(data.crops || []));

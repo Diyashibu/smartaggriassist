@@ -6,6 +6,10 @@
   font-family: 'DM Sans', sans-serif;
   background: #0d1a12;
   min-height: 100vh;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
   padding: 40px 32px 80px;
   color: #e8ede9;
 }
